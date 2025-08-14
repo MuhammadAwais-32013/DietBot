@@ -14,6 +14,7 @@ const Chatbot = () => {
   const [currentDietPlan, setCurrentDietPlan] = useState(null);
   const [medicalData, setMedicalData] = useState(null);
   const [showMedicalData, setShowMedicalData] = useState(false);
+  const [showFileUpload, setShowFileUpload] = useState(false);
   
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -168,14 +169,14 @@ const Chatbot = () => {
         setShowHealthForm(false);
         addMessage('assistant', `Hello! I am your AI Diet Planning Assistant, specialized in diabetes and blood pressure management. 
 
-**Your Health Profile:**
-- **Diabetes:** ${medicalCondition.hasDiabetes ? `${medicalCondition.diabetesType} (${medicalCondition.diabetesLevel})` : 'No'} 
-- **Blood Pressure:** ${medicalCondition.hasHypertension ? `${medicalCondition.systolic}/${medicalCondition.diastolic} mmHg` : 'Normal'}
-- **BMI:** ${calculateBMI(medicalCondition.height, medicalCondition.weight)}
+Your Health Profile:
+- Diabetes: ${medicalCondition.hasDiabetes ? `${medicalCondition.diabetesType} (${medicalCondition.diabetesLevel})` : 'No'} 
+- Blood Pressure: ${medicalCondition.hasHypertension ? `${medicalCondition.systolic}/${medicalCondition.diastolic} mmHg` : 'Normal'}
+- BMI: ${calculateBMI(medicalCondition.height, medicalCondition.weight)}
 
 I can help you create personalized diet plans based on your medical condition. How can I assist you today?
 
-**Note:** I'm specifically designed for diet and nutrition questions related to diabetes and blood pressure management. For other medical questions, please consult your healthcare provider.`);
+Note: I'm specifically designed for diet and nutrition questions related to diabetes and blood pressure management. For other medical questions, please consult your healthcare provider.`);
       } else {
         throw new Error('Failed to create session');
       }
@@ -297,14 +298,139 @@ I can help you create personalized diet plans based on your medical condition. H
   const downloadDietPlanAsPDF = () => {
     if (!currentDietPlan) return;
 
-    // Create a simple text file download for now
-    const element = document.createElement('a');
-    const file = new Blob([currentDietPlan], {type: 'text/plain'});
-    element.href = URL.createObjectURL(file);
-    element.download = 'personalized-diet-plan.txt';
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+    try {
+      // Create a professional PDF using jsPDF
+      const { jsPDF } = require('jspdf');
+      const doc = new jsPDF();
+      
+      // Set up professional styling
+      doc.setFont('helvetica');
+      
+      // Header with logo-like design
+      doc.setFillColor(52, 152, 219);
+      doc.rect(0, 0, 210, 25, 'F');
+      
+      // Title
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Personalized Diet Plan', 105, 15, { align: 'center' });
+      
+      // Subtitle
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('AI-Powered Nutrition Guidance', 105, 22, { align: 'center' });
+      
+      // Reset for content
+      doc.setTextColor(44, 62, 80);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      
+      let yPosition = 40;
+      const lineHeight = 6;
+      const leftMargin = 20;
+      const rightMargin = 190;
+      
+      // Function to add text with word wrapping
+      const addWrappedText = (text, y, fontSize = 12, isBold = false) => {
+        doc.setFontSize(fontSize);
+        if (isBold) {
+          doc.setFont('helvetica', 'bold');
+        } else {
+          doc.setFont('helvetica', 'normal');
+        }
+        
+        const lines = doc.splitTextToSize(text, rightMargin - leftMargin);
+        
+        if (y + (lines.length * lineHeight) > 280) {
+          doc.addPage();
+          y = 20;
+        }
+        
+        doc.text(lines, leftMargin, y);
+        return y + (lines.length * lineHeight) + 5;
+      };
+      
+      // Function to add section
+      const addSection = (title, content, y) => {
+        // Section title with background
+        doc.setFillColor(236, 240, 241);
+        doc.rect(leftMargin - 5, y - 3, rightMargin - leftMargin + 10, 8, 'F');
+        
+        doc.setFontSize(14);
+        doc.setTextColor(41, 128, 185);
+        doc.setFont('helvetica', 'bold');
+        y = addWrappedText(title, y, 14, true);
+        
+        // Section content
+        doc.setFontSize(11);
+        doc.setTextColor(52, 73, 94);
+        doc.setFont('helvetica', 'normal');
+        y = addWrappedText(content, y, 11);
+        
+        return y + 8;
+      };
+      
+      // Add patient information section
+      const patientInfo = `Patient Information:
+• Height: ${medicalCondition.height} cm
+• Weight: ${medicalCondition.weight} kg
+• BMI: ${calculateBMI(medicalCondition.height, medicalCondition.weight)}
+• Diabetes: ${medicalCondition.hasDiabetes ? `${medicalCondition.diabetesType} (${medicalCondition.diabetesLevel})` : 'No'}
+• Blood Pressure: ${medicalCondition.hasHypertension ? `${medicalCondition.systolic}/${medicalCondition.diastolic} mmHg` : 'Normal'}`;
+      
+      yPosition = addSection('Patient Information', patientInfo, yPosition);
+      
+      // Process the diet plan content
+      const sections = currentDietPlan.split('\n\n');
+      
+      for (const section of sections) {
+        if (section.trim()) {
+          const lines = section.split('\n');
+          const title = lines[0];
+          const content = lines.slice(1).join('\n');
+          
+          if (title.startsWith('##')) {
+            yPosition = addSection(title.replace('##', '').trim(), content, yPosition);
+          } else if (title.startsWith('###')) {
+            yPosition = addSection(title.replace('###', '').trim(), content, yPosition);
+          } else {
+            yPosition = addWrappedText(section, yPosition);
+          }
+        }
+      }
+      
+      // Add footer with page numbers
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        
+        // Footer line
+        doc.setDrawColor(189, 195, 199);
+        doc.setLineWidth(0.5);
+        doc.line(20, 290, 190, 290);
+        
+        // Page info
+        doc.setFontSize(9);
+        doc.setTextColor(128, 128, 128);
+        doc.text(`Page ${i} of ${pageCount}`, 105, 295, { align: 'center' });
+        doc.text('Generated by AI Diet Assistant', 105, 300, { align: 'center' });
+      }
+      
+      // Save the PDF
+      doc.save('personalized-diet-plan.pdf');
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      // Fallback to text download if PDF generation fails
+      const element = document.createElement('a');
+      const file = new Blob([currentDietPlan], {type: 'text/plain'});
+      element.href = URL.createObjectURL(file);
+      element.download = 'personalized-diet-plan.txt';
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+    }
   };
 
   return (
@@ -322,25 +448,25 @@ I can help you create personalized diet plans based on your medical condition. H
           </button>
         </div>
       ) : (
-        <div className="fixed bottom-6 right-6 z-50 w-[400px] h-[600px] bg-white rounded-xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
+        <div className="fixed bottom-6 right-6 z-50 w-[360px] h-[540px] bg-white rounded-xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-3 rounded-t-xl">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-2.5 rounded-t-xl">
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold">AI Diet Assistant</h3>
-                  <p className="text-xs text-blue-100">Diabetes & BP Management</p>
+                  <h3 className="text-sm font-semibold">AI Diet Assistant</h3>
+                  <p className="text-xs text-blue-100">Diabetes & BP Diet Planner</p>
                 </div>
               </div>
               <div className="flex gap-1">
                 <button
                   onClick={handleExit}
-                  className="text-white hover:text-red-300 transition-colors border border-white rounded px-2 py-1 text-xs font-medium hover:bg-red-500 hover:border-red-500"
+                  className="text-white hover:text-red-300 transition-colors border border-white rounded px-2 py-0.5 text-xs font-medium hover:bg-red-500 hover:border-red-500"
                   title="Exit Chatbot"
                 >
                   Exit
@@ -367,7 +493,7 @@ I can help you create personalized diet plans based on your medical condition. H
                   <p className="text-blue-700 text-xs">Please provide your health information to get started.</p>
                 </div>
                 
-                <form onSubmit={handleHealthFormSubmit} className="space-y-3">
+                <form onSubmit={handleHealthFormSubmit} className="space-y-2.5">
                   {/* Height and Weight for BMI */}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -474,17 +600,17 @@ I can help you create personalized diet plans based on your medical condition. H
                           required
                         />
                       </div>
-                                              <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Diastolic (mmHg)</label>
-                          <input
-                            type="number"
-                            placeholder="80"
-                            value={medicalCondition.diastolic}
-                            onChange={e => setMedicalCondition(prev => ({ ...prev, diastolic: e.target.value }))}
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                            required
-                          />
-                        </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Diastolic (mmHg)</label>
+                        <input
+                          type="number"
+                          placeholder="80"
+                          value={medicalCondition.diastolic}
+                          onChange={e => setMedicalCondition(prev => ({ ...prev, diastolic: e.target.value }))}
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          required
+                        />
+                      </div>
                     </div>
                   )}
 
@@ -533,35 +659,50 @@ I can help you create personalized diet plans based on your medical condition. H
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-blue-400 disabled:to-blue-500 text-white font-medium py-2 px-4 rounded-md transition-all duration-200 text-sm"
+                    className="w-full bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 hover:from-blue-700 hover:via-blue-800 hover:to-blue-900 disabled:from-blue-400 disabled:via-blue-500 disabled:to-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 text-sm shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none disabled:shadow-lg"
                   >
-                    {isLoading ? 'Setting up...' : 'Start Chat'}
+                    {isLoading ? (
+                      <div className="flex items-center justify-center space-x-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Setting up...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center space-x-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        <span>Start Chat</span>
+                      </div>
+                    )}
                   </button>
                 </form>
               </div>
             ) : (
               <>
-                {/* Medical Data Display */}
-                {showMedicalData && medicalData && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg mx-3 mt-3 p-2">
-                    <div className="flex justify-between items-center mb-1">
+                {/* Medical Data Display - Always Visible with Toggle */}
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg mx-3 mt-2">
+                  <div className="flex justify-between items-center p-2 cursor-pointer" onClick={() => setShowMedicalData(!showMedicalData)}>
+                    <div className="flex items-center space-x-2">
+                      <svg className={`w-4 h-4 text-green-600 transition-transform duration-200 ${showMedicalData ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
                       <h4 className="text-green-800 font-semibold text-xs">Medical Data Extracted</h4>
-                      <button
-                        onClick={() => setShowMedicalData(!showMedicalData)}
-                        className="text-green-600 hover:text-green-800"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                        </svg>
-                      </button>
                     </div>
-                    <div className="text-xs text-green-700 space-y-0.5">
-                      <div><strong>Diabetes:</strong> {medicalData.diabetes_info?.diagnosis || 'No'}</div>
-                      <div><strong>Blood Pressure:</strong> {medicalData.blood_pressure_info?.readings || 'No'}</div>
-                      <div><strong>Lab Data:</strong> {medicalData.lab_results?.has_lab_data || 'No'}</div>
-                    </div>
+                    <span className="text-green-600 text-xs font-medium">
+                      {showMedicalData ? 'Hide' : 'Show'}
+                    </span>
                   </div>
-                )}
+                  
+                  {showMedicalData && medicalData && (
+                    <div className="px-2 pb-2 border-t border-green-200">
+                      <div className="text-xs text-green-700 space-y-0.5 pt-2">
+                        <div><strong>Diabetes:</strong> {medicalData.diabetes_info?.diagnosis || 'No'}</div>
+                        <div><strong>Blood Pressure:</strong> {medicalData.blood_pressure_info?.readings || 'No'}</div>
+                        <div><strong>Lab Data:</strong> {medicalData.lab_results?.has_lab_data || 'No'}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Diet Plan Generator */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg mx-3 mt-2 p-2">
@@ -590,7 +731,7 @@ I can help you create personalized diet plans based on your medical condition. H
                       onClick={downloadDietPlanAsPDF}
                       className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 rounded transition-colors"
                     >
-                      Download Plan
+                      Download PDF
                     </button>
                   )}
                 </div>
@@ -603,7 +744,7 @@ I can help you create personalized diet plans based on your medical condition. H
                       className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[280px] px-3 py-2 rounded-lg text-sm ${
+                        className={`max-w-[240px] px-3 py-2 rounded-lg text-sm ${
                           message.sender === 'user'
                             ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white'
                             : 'bg-gray-100 text-gray-800'
@@ -629,6 +770,51 @@ I can help you create personalized diet plans based on your medical condition. H
 
                 {/* Input Area */}
                 <div className="border-t border-gray-200 p-3">
+                  {/* File Upload Toggle */}
+                  <div className="flex justify-center mb-2">
+                    <button
+                      onClick={() => setShowFileUpload(!showFileUpload)}
+                      className="text-blue-600 hover:text-blue-700 text-xs font-medium flex items-center space-x-1"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      <span>{showFileUpload ? 'Hide' : 'Add'} Medical Documents</span>
+                    </button>
+                  </div>
+
+                  {/* File Upload Section */}
+                  {showFileUpload && (
+                    <div className="mb-3 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <input
+                          type="file"
+                          multiple
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={handleFileUpload}
+                          className="text-xs"
+                        />
+                      </div>
+                      {medicalFiles.length > 0 && (
+                        <div className="space-y-1">
+                          {medicalFiles.map((file, index) => (
+                            <div key={index} className="flex items-center justify-between bg-white px-2 py-1 rounded text-xs">
+                              <span className="text-gray-700 truncate">{file.name}</span>
+                              <button
+                                onClick={() => removeFile(index)}
+                                className="text-red-500 hover:text-red-700 ml-2"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex space-x-2">
                     <input
                       type="text"
