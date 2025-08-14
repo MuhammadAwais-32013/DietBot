@@ -1,4 +1,4 @@
-# 🩺 NutriAI Diet Consultant - AI-Powered Health Assistant
+# 🩺 DiaBP  Diet Consultant - AI-Powered Health Assistant
 
 A modern, full-stack web application that provides personalized diet plans and health recommendations using AI-powered RAG (Retrieval-Augmented Generation) technology. Built for diabetes and hypertension patients with comprehensive health tracking and professional diet planning capabilities.
 
