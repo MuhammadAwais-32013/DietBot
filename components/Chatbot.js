@@ -72,10 +72,11 @@ const Chatbot = () => {
     setMessages(prev => [...prev, newMessage]);
   };
 
-  const handleExit = () => {
+  const handleExit = async () => {
     if (websocketRef.current) {
       websocketRef.current.close();
     }
+    
     setMessages(prev => [...prev, {
       id: Date.now(),
       sender: 'assistant',
@@ -83,11 +84,25 @@ const Chatbot = () => {
       sources: [],
       timestamp: new Date().toLocaleTimeString()
     }]);
+    
+    // Call logout endpoint to clean up session data
+    if (sessionId) {
+      try {
+        await fetch(`http://127.0.0.1:8000/api/chat/${sessionId}/logout`, {
+          method: 'POST',
+        });
+        console.log('Session cleaned up successfully');
+      } catch (error) {
+        console.error('Error cleaning up session:', error);
+      }
+    }
+    
     setTimeout(() => {
       setIsOpen(false);
       setShowHealthForm(true);
       setMessages([]);
       setSessionId(null);
+      localStorage.removeItem('chat_session_id');
       setMedicalCondition({
         hasDiabetes: false,
         diabetesType: '',
@@ -743,9 +758,26 @@ I cannot create a ${requestedDuration} plan. Please choose one of the supported 
           if (title.includes('Day') || title.includes('Breakfast') || title.includes('Lunch') || title.includes('Dinner')) {
             // Format meal sections
             yPosition = addSection(title, content, yPosition);
-          } else if (title.includes('Nutritional') || title.includes('Lifestyle') || title.includes('Important')) {
-            // Format guideline sections
-            yPosition = addSection(title, content, yPosition);
+          } else if (title.includes('Nutritional') || title.includes('Lifestyle Recommendations') || title.includes('Important Notes')) {
+            // Format guideline sections with special handling for required sections
+            if (title.includes('Lifestyle Recommendations') || title.includes('Important Notes')) {
+              // Use special formatting for these required sections
+              doc.setFillColor(52, 152, 219);
+              doc.rect(leftMargin - 5, yPosition - 3, rightMargin - leftMargin + 10, 8, 'F');
+              
+              doc.setFontSize(14);
+              doc.setTextColor(255, 255, 255);
+              doc.setFont('helvetica', 'bold');
+              yPosition = addWrappedText(title, yPosition, 14, true);
+              
+              // Section content
+              doc.setFontSize(11);
+              doc.setTextColor(52, 73, 94);
+              doc.setFont('helvetica', 'normal');
+              yPosition = addWrappedText(content, yPosition, 11);
+            } else {
+              yPosition = addSection(title, content, yPosition);
+            }
           } else {
             // Clean up extra spaces and format regular text
             const cleanText = section.replace(/\n\s*\n/g, '\n').trim();
