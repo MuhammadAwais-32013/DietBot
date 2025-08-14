@@ -1,0 +1,385 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary-color: #3b82f6;
+  --secondary-color: #6366f1;
+  --accent-color: #06b6d4;
+  --light-bg: #f0f9ff;
+}
+
+/* Base Styles */
+body {
+  @apply text-gray-700 bg-gray-50;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+}
+
+.container {
+  @apply px-4 mx-auto max-w-6xl;
+}
+
+/* Buttons */
+.btn {
+  @apply px-6 py-3 rounded-md shadow-sm text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500;
+}
+
+.btn-secondary {
+  @apply px-6 py-3 rounded-md shadow-sm text-blue-700 bg-blue-100 hover:bg-blue-200 font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500;
+}
+
+/* Forms */
+.form-input {
+  @apply block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm placeholder-gray-400;
+}
+
+.form-label {
+  @apply block text-sm font-medium text-gray-700 mb-1;
+}
+
+/* Cards and Containers */
+.card {
+  @apply p-6 bg-white rounded-lg shadow-md border border-gray-100;
+}
+
+.feature-card {
+  @apply p-6 bg-white rounded-xl shadow-md border border-gray-100 hover:shadow-lg transition-all duration-300 hover:border-blue-200 hover:translate-y-[-5px];
+}
+
+/* Navigation */
+.menu-link {
+  @apply text-gray-600 hover:text-blue-600 font-medium transition-colors duration-200;
+}
+
+.menu-link-active {
+  @apply text-blue-600 font-semibold;
+}
+
+.gradient-heading {
+  @apply font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600;
+}
+
+/* Chatbot Enhanced Styles */
+.chatbot-container {
+  @apply fixed inset-y-0 right-0 w-96 bg-white shadow-2xl border-l z-50 flex flex-col transition-all duration-300 ease-in-out;
+}
+
+.chatbot-header {
+  @apply p-4 border-b flex justify-between items-center bg-gradient-to-r from-blue-600 to-indigo-600 text-white;
+}
+
+.chatbot-messages {
+  @apply flex-1 overflow-y-auto p-4 bg-gray-50;
+}
+
+.message-bubble-user {
+  @apply inline-block p-3 rounded-lg max-w-[80%] bg-blue-600 text-white shadow-md;
+}
+
+.message-bubble-bot {
+  @apply inline-block p-3 rounded-lg max-w-[80%] bg-white text-gray-800 shadow-md border border-gray-200;
+}
+
+.chatbot-input {
+  @apply p-4 border-t flex gap-2 bg-white;
+}
+
+/* Diet Plan Styles */
+.meal-filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #e2e8f0;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.meal-tab {
+  @apply px-4 py-2 font-medium text-gray-600 rounded-md cursor-pointer transition-colors;
+}
+
+.meal-tab-active {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.meal-card {
+  @apply p-4 bg-white rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition-shadow;
+}
+
+.meal-header {
+  background-color: #f8fafc;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+@media (max-width: 640px) {
+  .meal-filter-tabs {
+    justify-content: center;
+    padding-bottom: 0.5rem;
+  }
+  
+  .meal-tab {
+    flex: 1 1 auto;
+    text-align: center;
+    font-size: 0.75rem;
+    padding: 0.5rem;
+  }
+}
+
+/* BMI Result Styles */
+.bmi-result-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1.5rem 0;
+}
+
+.bmi-circle {
+  width: 10rem;
+  height: 10rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  animation: pulse 2s ease-in-out;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.bmi-circle::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  right: -8px;
+  bottom: -8px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  animation: rotate 4s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
+  }
+  
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+  }
+  
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+@keyframes rotate {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.bmi-circle.underweight {
+  background-color: #eff6ff;
+  color: #2563eb;
+}
+
+.bmi-circle.underweight::before {
+  border-color: #3b82f6;
+}
+
+.bmi-circle.normal-weight {
+  background-color: #ecfdf5;
+  color: #059669;
+}
+
+.bmi-circle.normal-weight::before {
+  border-color: #10b981;
+}
+
+.bmi-circle.overweight {
+  background-color: #fffbeb;
+  color: #d97706;
+}
+
+.bmi-circle.overweight::before {
+  border-color: #f59e0b;
+}
+
+.bmi-circle.obese {
+  background-color: #fef2f2;
+  color: #dc2626;
+}
+
+.bmi-circle.obese::before {
+  border-color: #ef4444;
+}
+
+/* Tables */
+.records-table {
+  @apply min-w-full divide-y divide-gray-200 border-collapse table-auto;
+}
+
+.record-row {
+  @apply bg-white hover:bg-blue-50 transition-colors;
+}
+
+/* Misc */
+.ml-13 {
+  margin-left: 3.25rem;
+}
+
+/* Grid Background */
+.bg-grid-white {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='32' height='32' fill='none' stroke='rgb(255 255 255 / 0.05)'%3e%3cpath d='M0 .5H31.5V32'/%3e%3c/svg%3e");
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Auth Forms */
+.auth-form-container {
+  @apply min-h-[calc(100vh-16rem)] flex items-center justify-center px-4 py-12 sm:px-6 lg:px-8 relative overflow-hidden;
+}
+
+.auth-form-card {
+  @apply bg-white py-8 px-6 sm:px-10 shadow-xl rounded-2xl border border-gray-100;
+}
+
+.auth-input-icon {
+  @apply absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none;
+}
+
+.auth-form {
+  @apply space-y-6;
+}
+
+/* For main content pages */
+.content-container {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-12;
+}
+
+.section-title {
+  @apply text-2xl md:text-3xl font-bold text-gray-900 mb-4;
+}
+
+.section-subtitle {
+  @apply text-lg text-gray-600 max-w-3xl mx-auto;
+}
+
+/* Enhanced card styles */
+.elevated-card {
+  @apply bg-white rounded-xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300;
+}
+
+.elevated-card:hover {
+  @apply border-blue-200 transform -translate-y-1;
+}
+
+/* Enhanced animations */
+.fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+.slide-in-right {
+  animation: slideInRight 0.5s ease-out forwards;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Enhanced button styles */
+.btn-animated {
+  @apply relative overflow-hidden transition-all duration-300;
+}
+
+.btn-animated::after {
+  content: '';
+  @apply absolute top-0 h-full w-0 right-0 bg-white bg-opacity-20 transition-all duration-300;
+}
+
+.btn-animated:hover::after {
+  @apply w-full left-0;
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  .btn, .btn-secondary {
+    @apply px-4 py-2 text-sm;
+  }
+}
+
+/* Background patterns for forms */
+.bg-dots-pattern {
+  background-image: radial-gradient(circle, #e5e7eb 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.bg-grid-pattern {
+  background-image: linear-gradient(to right, #e5e7eb 1px, transparent 1px),
+                    linear-gradient(to bottom, #e5e7eb 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.bg-diagonal-pattern {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(59, 130, 246, 0.05),
+    rgba(59, 130, 246, 0.05) 10px,
+    rgba(99, 102, 241, 0.05) 10px,
+    rgba(99, 102, 241, 0.05) 20px
+  );
+}
+
+/* Form container with background */
+.form-container {
+  @apply relative overflow-hidden bg-gradient-to-br from-gray-50 to-blue-50;
+}
+
+.form-container::before {
+  content: '';
+  @apply absolute inset-0 bg-grid-pattern opacity-[0.03] pointer-events-none;
+} 

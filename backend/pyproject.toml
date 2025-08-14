@@ -1,0 +1,32 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Backend for Diet Consultant with FastAPI and DieBot integration"
+readme = "README.md"
+authors = [
+    { name = "Muhammad Awais Qarni", email = "owaisq2019@gmail.com" }
+]
+requires-python = ">=3.10"
+
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "fastapi-sqlalchemy",
+    "python-dotenv",
+    "SQLAlchemy",
+    "bcrypt",
+    "mysql-connector-python",
+    "pytesseract",
+    "Pillow",
+    "pytest",
+    "pytest-asyncio",
+    "httpx",
+    "faiss-cpu>=1.11.0.post1",
+    "sentence-transformers>=5.1.0",
+    "google-generativeai>=0.8.5",
+    "pymupdf", # fitz module
+    "tqdm",
+    "numpy",
+    "websockets",
+    "python-multipart",
+]
