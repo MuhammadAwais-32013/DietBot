@@ -168,8 +168,8 @@ const Chatbot = () => {
         // Get medical data
         await fetchMedicalData(data.session_id);
         
-        setShowHealthForm(false);
-        addMessage('assistant', `Hello! I am your AI Diet Planning Assistant, specialized in diabetes and blood pressure management.
+                 setShowHealthForm(false);
+         addMessage('assistant', `Hello! I am your AI Diet Planning Assistant, specialized in diabetes and blood pressure management.
 
 Your Health Profile:
 • Diabetes: ${medicalCondition.hasDiabetes ? `${medicalCondition.diabetesType} (${medicalCondition.diabetesLevel})` : 'No'} 
@@ -188,10 +188,12 @@ I can help you create personalized diet plans based on your medical condition.
 💡 **Other Questions:**
 • Nutrition: "What foods help with diabetes?", "DASH diet recommendations?"
 • Health advice: "How to manage blood sugar?", "Best exercises for hypertension?"
+• Health guidance: "Suggest me some health tips", "Give me health advice"
 
-How can I assist you today?
+⚠️ **IMPORTANT DISCLAIMER:**
+This AI assistant provides general health and diet guidance for educational purposes only. It is NOT a substitute for professional medical advice. Always consult your healthcare provider before making significant changes.
 
-Note: I'm specifically designed for diet and nutrition questions related to diabetes and blood pressure management. For other medical questions, please consult your healthcare provider.`);
+How can I assist you today?`);
       } else {
         throw new Error('Failed to create session');
       }
@@ -293,17 +295,31 @@ Just tell me which duration you prefer!`;
         setDietPlanDuration(dietPlanRequest);
         await handleGenerateDietPlanFromChat(dietPlanRequest);
       } else {
-        // Check if it's a general query
-        const isGeneralQuery = !isDietRelatedQuestion(userMessage);
-        
-        if (isGeneralQuery) {
-          // Simulate streaming for general query response
-          const generalResponse = getProfessionalGeneralResponse();
-          await simulateStreamingResponse(generalResponse);
-          addMessage('assistant', generalResponse);
+        // Check if it's a health guidance request
+        if (userMessage.toLowerCase().includes('health guidance') || 
+            userMessage.toLowerCase().includes('health tips') || 
+            userMessage.toLowerCase().includes('good health') ||
+            userMessage.toLowerCase().includes('suggest') ||
+            userMessage.toLowerCase().includes('advice')) {
+          
+          // Generate health guidance with disclaimer
+          const healthGuidance = await generateHealthGuidance(userMessage);
+          const fullResponse = `${healthGuidance}\n\n${getHealthGuidanceDisclaimer()}`;
+          await simulateStreamingResponse(fullResponse);
+          addMessage('assistant', fullResponse);
         } else {
-          // Use WebSocket for streaming diet-related responses
-          await streamResponseViaWebSocket(userMessage);
+          // Check if it's a general query
+          const isGeneralQuery = !isDietRelatedQuestion(userMessage);
+          
+          if (isGeneralQuery) {
+            // Simulate streaming for general query response
+            const generalResponse = getProfessionalGeneralResponse();
+            await simulateStreamingResponse(generalResponse);
+            addMessage('assistant', generalResponse);
+          } else {
+            // Use REST API for streaming diet-related responses
+            await streamResponseViaRestAPI(userMessage);
+          }
         }
       }
     } catch (error) {
@@ -420,6 +436,19 @@ Just tell me which duration you prefer!`;
     return `I'm sorry, but I'm specifically designed as a diet and health assistant for diabetes and blood pressure patients. I can only help with diet planning, nutrition advice, and health management related to these conditions. For other topics, please consult your healthcare provider.`;
   };
 
+  const getHealthGuidanceDisclaimer = () => {
+    return `⚠️ **IMPORTANT DISCLAIMER**
+
+This AI assistant provides general health and diet guidance based on your provided information. However:
+
+• This is NOT a substitute for professional medical advice
+• Always consult with your healthcare provider before making significant changes
+• Individual health needs may vary
+• The information provided is for educational purposes only
+
+For personalized medical advice, please consult your doctor or registered dietitian.`;
+  };
+
   const getUnsupportedDurationResponse = (unsupportedDuration) => {
     const durationMap = {
       'unsupported_5_days': '5 days',
@@ -485,7 +514,32 @@ I cannot create a ${requestedDuration} plan. Please choose one of the supported 
     }
   };
 
-  const streamResponseViaWebSocket = async (message) => {
+  const generateHealthGuidance = async (message) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/api/chat/${sessionId}/message`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: message,
+          chat_history: messages
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return formatResponseForDisplay(data.response);
+      } else {
+        throw new Error('Failed to generate health guidance');
+      }
+    } catch (error) {
+      console.error('Error generating health guidance:', error);
+      return 'I apologize, but I encountered an error while generating health guidance. Please try again or consult your healthcare provider for personalized advice.';
+    }
+  };
+
+  const streamResponseViaRestAPI = async (message) => {
     try {
       const response = await fetch(`http://127.0.0.1:8000/api/chat/${sessionId}/message`, {
         method: 'POST',
@@ -699,6 +753,13 @@ I cannot create a ${requestedDuration} plan. Please choose one of the supported 
           }
         }
       }
+      
+      // Add disclaimer section before footer
+      const disclaimerText = `⚠️ IMPORTANT DISCLAIMER
+
+This AI-generated diet plan is for educational purposes only and is NOT a substitute for professional medical advice. Always consult with your healthcare provider or registered dietitian before making significant dietary changes. Individual health needs may vary.`;
+      
+      yPosition = addSection('Medical Disclaimer', disclaimerText, yPosition);
       
       // Add footer with page numbers
       const pageCount = doc.internal.getNumberOfPages();

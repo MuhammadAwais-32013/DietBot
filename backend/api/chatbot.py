@@ -29,7 +29,8 @@ def is_diet_related_question(message: str) -> bool:
         'blood pressure', 'hypertension', 'sodium', 'salt', 'dash diet',
         'breakfast', 'lunch', 'dinner', 'snack', 'portion', 'weight', 'bmi',
         'cholesterol', 'fat', 'calorie', 'exercise', 'lifestyle', 'management',
-        'plan', 'diet plan', 'days', 'week', 'month'
+        'plan', 'diet plan', 'days', 'week', 'month',
+        'health', 'guidance', 'tips', 'advice', 'suggest', 'recommend'
     ]
     message = message.lower()
     return any(keyword in message for keyword in keywords)
@@ -519,6 +520,9 @@ User Information:
 Guidelines:
 - Give clear, actionable advice with simple bullet points
 - Keep formatting clean and professional
+- If this is a health guidance request, provide practical tips based on the user's specific conditions
+- Focus on lifestyle, diet, exercise, and management strategies
+- Be encouraging and supportive while maintaining medical accuracy
 """
                 response_text = generate_diet_plan_with_gemini(prompt)
         
@@ -688,6 +692,9 @@ User Information:
 Guidelines:
 - Give clear, actionable advice with simple bullet points
 - Keep formatting clean and professional
+- If this is a health guidance request, provide practical tips based on the user's specific conditions
+- Focus on lifestyle, diet, exercise, and management strategies
+- Be encouraging and supportive while maintaining medical accuracy
 """
                         response_text = generate_diet_plan_with_gemini(prompt)
                 
