@@ -28,7 +28,8 @@ def is_diet_related_question(message: str) -> bool:
         'diabetes', 'diabetic', 'blood sugar', 'insulin', 'a1c', 'glycemic',
         'blood pressure', 'hypertension', 'sodium', 'salt', 'dash diet',
         'breakfast', 'lunch', 'dinner', 'snack', 'portion', 'weight', 'bmi',
-        'cholesterol', 'fat', 'calorie', 'exercise', 'lifestyle', 'management'
+        'cholesterol', 'fat', 'calorie', 'exercise', 'lifestyle', 'management',
+        'plan', 'diet plan', 'days', 'week', 'month'
     ]
     message = message.lower()
     return any(keyword in message for keyword in keywords)
@@ -300,26 +301,56 @@ def format_response(raw_text: str, is_diet_plan: bool = False) -> str:
     return text
 
 def format_general_response() -> str:
-    """Format a professional response for non-diet queries"""
-    return """## Question Outside My Expertise
+    """Short, polite response for questions outside scope."""
+    return (
+        "Sorry, I can only help with diet planning and nutrition for diabetes and blood pressure. "
+        "Ask about diet, meals, or generate a plan (7, 10, 14, 21, or 30 days)."
+    )
 
-I apologize, but I'm specifically designed to help with **diet planning and nutrition-related questions** for diabetes and blood pressure management.
 
-### I Can Help You With:
-- Personalized diet plans for diabetes and hypertension
-- Meal suggestions and nutrition advice
-- Blood sugar management through diet
-- DASH diet recommendations
-- Dietary guidelines for your condition
-- Lifestyle recommendations for better health
+def map_duration_to_days(duration: str) -> Optional[int]:
+    """Map supported duration keys to exact day counts."""
+    mapping = {
+        "1_week": 7,
+        "10_days": 10,
+        "14_days": 14,
+        "21_days": 21,
+        "1_month": 30,
+    }
+    return mapping.get(duration)
 
-### For Other Topics:
-Please consult with your **healthcare provider** or use other appropriate resources for general medical questions.
 
-### Let's Focus on Your Health:
-Is there anything specific about your **diet, nutrition, or health management** that I can help you with? I'm here to create personalized plans just for you!
+def parse_days_from_text(message: str) -> Optional[int]:
+    """Extract requested number of days from free text like 'plan for 30 days' or '2 weeks' or '1 month'."""
+    msg = message.lower()
+    # Explicit days, e.g., 10 days / 14 day
+    m = re.search(r"(\d+)\s*day(s)?", msg)
+    if m:
+        try:
+            return int(m.group(1))
+        except Exception:
+            pass
+    # Weeks, e.g., 1 week / 2 weeks
+    m = re.search(r"(\d+)\s*week(s)?", msg)
+    if m:
+        try:
+            return int(m.group(1)) * 7
+        except Exception:
+            pass
+    # Month (~30 days)
+    if re.search(r"\b1\s*month\b", msg):
+        return 30
+    if re.search(r"\b30\s*day(s)?\b", msg):
+        return 30
+    return None
 
-**Note:** Type 'exit' to end the conversation."""
+
+def unsupported_duration_response() -> str:
+    """Polite guidance for unsupported duration requests."""
+    return (
+        "I can generate diet plans for these durations: 7 days (1 week), 10 days, 14 days, 21 days, or 30 days (1 month). "
+        "Please choose one of these options."
+    )
 
 @router.post("/session")
 async def create_chat_session(
@@ -397,15 +428,20 @@ async def send_message(session_id: str, message_data: ChatMessage):
         if session_id in ingest_tasks and ingest_tasks[session_id]["status"] != "completed":
             raise HTTPException(status_code=400, detail="File ingestion not complete")
         
+        message_lower = message_data.message.lower()
+
         # Check if the question is diet-related
-        if not is_diet_related_question(message_data.message):
+        if not is_diet_related_question(message_lower):
             response_text = format_general_response()
             sources = []
         else:
-            # Prepare context using RAG functions
+            # If user explicitly asks for a plan for N days/weeks/month
+            requested_days = parse_days_from_text(message_lower)
+            supported_days = {7, 10, 14, 21, 30}
+
+            # Prepare context using RAG functions (used in both branches below)
             retrieved_context = ""
             faiss_dir = os.path.join(CHATBOT_DATA_DIR, 'uploads', session_id, 'faiss')
-            
             if os.path.exists(faiss_dir) and any(f.endswith('.index') for f in os.listdir(faiss_dir)):
                 try:
                     retriever = KnowledgeBaseRetriever(faiss_dir)
@@ -413,7 +449,7 @@ async def send_message(session_id: str, message_data: ChatMessage):
                     retrieved_context = "\n---\n".join([f"[Source: {r['source']}]\n{r['chunk']}" for r in results])
                 except Exception as e:
                     print(f"Warning: Error retrieving context: {e}")
-            
+
             # Get OCR data
             ocr_data = None
             session_dir = os.path.join(CHATBOT_DATA_DIR, 'uploads', session_id)
@@ -422,17 +458,20 @@ async def send_message(session_id: str, message_data: ChatMessage):
                     with open(os.path.join(session_dir, file), 'r') as f:
                         ocr_data = json.load(f)
                     break
-            
-            # Generate response using Gemini LLM
-            prompt = f"""
-You are a clinical dietitian specializing in diabetes and hypertension management. Provide a helpful, evidence-based response to the following question.
 
-**User Question:** {message_data.message}
+            if requested_days is not None:
+                if requested_days in supported_days:
+                    # Generate a day-wise plan for the exact number of days
+                    prompt = f"""
+You are a clinical dietitian specializing in diabetes and hypertension management. Create a personalized diet plan.
 
-**Context from uploaded documents:**
+Duration: EXACTLY {requested_days} days. Output MUST be day-wise with headings 'Day 1:' through 'Day {requested_days}:'.
+For each day include: Breakfast:, Mid-Morning Snack:, Lunch:, Afternoon Snack:, Dinner: with portions and simple timing. Do not group by week or repeat weekly cycles. Generate unique entries up to Day {requested_days}.
+
+Context from uploaded documents:
 {retrieved_context}
 
-**User Information:**
+User Information:
 - Diabetes: {user_data.get('hasDiabetes', False)}
 - Diabetes Type: {user_data.get('diabetesType', 'N/A')}
 - Diabetes Level: {user_data.get('diabetesLevel', 'N/A')}
@@ -442,18 +481,46 @@ You are a clinical dietitian specializing in diabetes and hypertension managemen
 - Weight: {user_data.get('weight', 'N/A')} kg
 - Lab Results: {ocr_data if ocr_data else 'N/A'}
 
-**Response Guidelines:**
-- Provide clear, actionable advice
-- Use simple headings (## for main sections, ### for subsections)
-- Use bullet points (-) for lists
-- Use bold text (**text**) only for important information
-- Keep formatting clean and professional
-- Focus on practical recommendations
-- Include relevant lifestyle tips when appropriate
-
-Format your response with clear sections and simple bullet points. Make it easy to read and follow.
+Formatting:
+- Start each day with 'Day X:' on a new line
+- Keep it concise and readable
 """
-            response_text = generate_diet_plan_with_gemini(prompt)
+                    response_text = generate_diet_plan_with_gemini(prompt)
+                    # Save to session diet plans
+                    if "diet_plans" not in session:
+                        session["diet_plans"] = []
+                    session["diet_plans"].append({
+                        "duration": f"{requested_days}_days",
+                        "plan": response_text,
+                        "timestamp": asyncio.get_event_loop().time()
+                    })
+                else:
+                    response_text = unsupported_duration_response()
+            else:
+                # General diet-related response (not an explicit multi-day plan request)
+                prompt = f"""
+You are a clinical dietitian specializing in diabetes and hypertension management. Provide a helpful, evidence-based response to the following question.
+
+User Question: {message_data.message}
+
+Context from uploaded documents:
+{retrieved_context}
+
+User Information:
+- Diabetes: {user_data.get('hasDiabetes', False)}
+- Diabetes Type: {user_data.get('diabetesType', 'N/A')}
+- Diabetes Level: {user_data.get('diabetesLevel', 'N/A')}
+- Blood Pressure: {user_data.get('hasHypertension', False)}
+- BP Readings: {user_data.get('systolic', 'N/A')}/{user_data.get('diastolic', 'N/A')} mmHg
+- Height: {user_data.get('height', 'N/A')} cm
+- Weight: {user_data.get('weight', 'N/A')} kg
+- Lab Results: {ocr_data if ocr_data else 'N/A'}
+
+Guidelines:
+- Give clear, actionable advice with simple bullet points
+- Keep formatting clean and professional
+"""
+                response_text = generate_diet_plan_with_gemini(prompt)
         
         # Format the response for consistent styling
         response_text = format_response(response_text, is_diet_plan=False)
@@ -567,16 +634,22 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                                 ocr_data = json.load(f)
                             break
                     
-                    # Generate response
-                    prompt = f"""
-You are a clinical dietitian specializing in diabetes and hypertension management. Provide a helpful, evidence-based response to the following question.
+                    # Determine if user requested explicit day-wise plan
+                    requested_days = parse_days_from_text(message)
+                    supported_days = {7, 10, 14, 21, 30}
 
-**User Question:** {message}
+                    if requested_days is not None:
+                        if requested_days in supported_days:
+                            prompt = f"""
+You are a clinical dietitian specializing in diabetes and hypertension management. Create a personalized diet plan.
 
-**Context from uploaded documents:**
+Duration: EXACTLY {requested_days} days. Output MUST be day-wise with headings 'Day 1:' through 'Day {requested_days}:'.
+For each day include: Breakfast:, Mid-Morning Snack:, Lunch:, Afternoon Snack:, Dinner: with portions and simple timing. Do not group by week or repeat weekly cycles.
+
+Context from uploaded documents:
 {retrieved_context}
 
-**User Information:**
+User Information:
 - Diabetes: {user_data.get('hasDiabetes', False)}
 - Diabetes Type: {user_data.get('diabetesType', 'N/A')}
 - Diabetes Level: {user_data.get('diabetesLevel', 'N/A')}
@@ -586,18 +659,37 @@ You are a clinical dietitian specializing in diabetes and hypertension managemen
 - Weight: {user_data.get('weight', 'N/A')} kg
 - Lab Results: {ocr_data if ocr_data else 'N/A'}
 
-**Response Guidelines:**
-- Provide clear, actionable advice
-- Use simple headings (## for main sections, ### for subsections)
-- Use bullet points (-) for lists
-- Use bold text (**text**) only for important information
-- Keep formatting clean and professional
-- Focus on practical recommendations
-- Include relevant lifestyle tips when appropriate
-
-Format your response with clear sections and simple bullet points. Make it easy to read and follow.
+Formatting:
+- Start each day with 'Day X:' on a new line
+- Keep it concise and readable
 """
-                    response_text = generate_diet_plan_with_gemini(prompt)
+                            response_text = generate_diet_plan_with_gemini(prompt)
+                        else:
+                            response_text = unsupported_duration_response()
+                    else:
+                        prompt = f"""
+You are a clinical dietitian specializing in diabetes and hypertension management. Provide a helpful, evidence-based response to the following question.
+
+User Question: {message}
+
+Context from uploaded documents:
+{retrieved_context}
+
+User Information:
+- Diabetes: {user_data.get('hasDiabetes', False)}
+- Diabetes Type: {user_data.get('diabetesType', 'N/A')}
+- Diabetes Level: {user_data.get('diabetesLevel', 'N/A')}
+- Blood Pressure: {user_data.get('hasHypertension', False)}
+- BP Readings: {user_data.get('systolic', 'N/A')}/{user_data.get('diastolic', 'N/A')} mmHg
+- Height: {user_data.get('height', 'N/A')} cm
+- Weight: {user_data.get('weight', 'N/A')} kg
+- Lab Results: {ocr_data if ocr_data else 'N/A'}
+
+Guidelines:
+- Give clear, actionable advice with simple bullet points
+- Keep formatting clean and professional
+"""
+                        response_text = generate_diet_plan_with_gemini(prompt)
                 
                 # Format the response for consistent styling
                 response_text = format_response(response_text, is_diet_plan=False)
@@ -755,11 +847,22 @@ async def generate_diet_plan(session_id: str, request: DietPlanRequest):
             except Exception as e:
                 print(f"Warning: Error retrieving context: {e}")
         
-        # Generate diet plan using Gemini LLM
-        prompt = f"""
-You are a clinical dietitian specializing in diabetes and hypertension management. Create a personalized diet plan for the user.
+        # Normalize duration to exact day count
+        days = map_duration_to_days(request.duration)
+        if days is None:
+            return JSONResponse(status_code=400, content={"detail": unsupported_duration_response()})
 
-**User Information:**
+        # Generate strict day-wise diet plan using Gemini LLM
+        prompt = f"""
+You are a clinical dietitian specializing in diabetes and hypertension management. Create a personalized diet plan.
+
+Duration: EXACTLY {days} days. Output MUST be day-wise with headings 'Day 1:' through 'Day {days}:'.
+For each day include: Breakfast:, Mid-Morning Snack:, Lunch:, Afternoon Snack:, Dinner: with portions and simple timing. Do not group by week or repeat weekly cycles. Generate unique entries up to Day {days}.
+
+Context from uploaded documents:
+{retrieved_context}
+
+User Information:
 - Diabetes: {user_data.get('hasDiabetes', False)}
 - Diabetes Type: {user_data.get('diabetesType', 'N/A')}
 - Diabetes Level: {user_data.get('diabetesLevel', 'N/A')}
@@ -767,30 +870,12 @@ You are a clinical dietitian specializing in diabetes and hypertension managemen
 - BP Readings: {user_data.get('systolic', 'N/A')}/{user_data.get('diastolic', 'N/A')} mmHg
 - Height: {user_data.get('height', 'N/A')} cm
 - Weight: {user_data.get('weight', 'N/A')} kg
-- Duration: {request.duration}
 
-**Context from uploaded documents:**
-{retrieved_context}
-
-**Diet Plan Requirements:**
-- Create a {request.duration.replace('_', ' ')} diet plan
-- Focus on diabetes and blood pressure management
-- Include specific meal suggestions
-- Provide portion sizes and timing
-- Include nutritional information
-- Add lifestyle recommendations
-- Make it practical and easy to follow
-
-**Format Guidelines:**
-- Use clear headings (## for main sections, ### for subsections)
-- Use bullet points (-) for lists
-- Use bold text (**text**) for important information
-- Keep formatting clean and professional
-- Structure: Overview, Daily Plans, Nutritional Guidelines, Lifestyle Tips
-
-Create a comprehensive, personalized diet plan that the user can easily follow.
+Formatting:
+- Start each day with 'Day X:' on a new line
+- Keep it concise and readable
 """
-        
+
         diet_plan = generate_diet_plan_with_gemini(prompt)
         diet_plan = format_response(diet_plan, is_diet_plan=True)
         
