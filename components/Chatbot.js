@@ -9,7 +9,7 @@ const Chatbot = () => {
   const [sessionId, setSessionId] = useState(null);
   const [showHealthForm, setShowHealthForm] = useState(true);
   const [medicalFiles, setMedicalFiles] = useState([]);
-  const [dietPlanDuration, setDietPlanDuration] = useState('1_week');
+  const [dietPlanDuration, setDietPlanDuration] = useState('7_days');
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [currentDietPlan, setCurrentDietPlan] = useState(null);
   const [medicalData, setMedicalData] = useState(null);
@@ -176,7 +176,20 @@ Your Health Profile:
 • Blood Pressure: ${medicalCondition.hasHypertension ? `${medicalCondition.systolic}/${medicalCondition.diastolic} mmHg` : 'Normal'}
 • BMI: ${calculateBMI(medicalCondition.height, medicalCondition.weight)}
 
-I can help you create personalized diet plans based on your medical condition. How can I assist you today?
+I can help you create personalized diet plans based on your medical condition. 
+
+💡 **Supported Diet Plan Durations:**
+• 7 Days (1 Week) - "Generate 7 day plan"
+• 10 Days - "Create 10 day diet"
+• 14 Days (2 Weeks) - "Give me 2 week plan"
+• 21 Days (3 Weeks) - "Create 3 week diet"
+• 30 Days (1 Month) - "Generate 1 month plan"
+
+💡 **Other Questions:**
+• Nutrition: "What foods help with diabetes?", "DASH diet recommendations?"
+• Health advice: "How to manage blood sugar?", "Best exercises for hypertension?"
+
+How can I assist you today?
 
 Note: I'm specifically designed for diet and nutrition questions related to diabetes and blood pressure management. For other medical questions, please consult your healthcare provider.`);
       } else {
@@ -248,21 +261,62 @@ Note: I'm specifically designed for diet and nutrition questions related to diab
     setStreamingMessage('');
 
     try {
-      // Check if it's a general query first
-      const isGeneralQuery = !isDietRelatedQuestion(userMessage);
+      // Check for unsupported durations first
+      const unsupportedDuration = validateDietPlanDuration(userMessage);
+      if (unsupportedDuration) {
+        const unsupportedResponse = getUnsupportedDurationResponse(unsupportedDuration);
+        await simulateStreamingResponse(unsupportedResponse);
+        addMessage('assistant', unsupportedResponse);
+        return;
+      }
       
-      if (isGeneralQuery) {
-        // Simulate streaming for general query response
-        const generalResponse = getProfessionalGeneralResponse();
-        await simulateStreamingResponse(generalResponse);
-        addMessage('assistant', generalResponse);
+      // Check if it's a supported diet plan request
+      const dietPlanRequest = extractDietPlanRequest(userMessage);
+      
+      if (dietPlanRequest === 'generic_diet_plan') {
+        // Handle generic diet plan request
+        const genericResponse = `I'd be happy to create a personalized diet plan for you! 
+
+Please specify the duration you'd like:
+
+• 7 Days (1 Week) - "Generate 7 day plan"
+• 10 Days - "Create 10 day diet"  
+• 14 Days (2 Weeks) - "Give me 2 week plan"
+• 21 Days (3 Weeks) - "Create 3 week diet"
+• 30 Days (1 Month) - "Generate 1 month plan"
+
+Just tell me which duration you prefer!`;
+        await simulateStreamingResponse(genericResponse);
+        addMessage('assistant', genericResponse);
+      } else if (dietPlanRequest) {
+        // Handle specific diet plan generation request
+        setDietPlanDuration(dietPlanRequest);
+        await handleGenerateDietPlanFromChat(dietPlanRequest);
       } else {
-        // Use WebSocket for streaming diet-related responses
-        await streamResponseViaWebSocket(userMessage);
+        // Check if it's a general query
+        const isGeneralQuery = !isDietRelatedQuestion(userMessage);
+        
+        if (isGeneralQuery) {
+          // Simulate streaming for general query response
+          const generalResponse = getProfessionalGeneralResponse();
+          await simulateStreamingResponse(generalResponse);
+          addMessage('assistant', generalResponse);
+        } else {
+          // Use WebSocket for streaming diet-related responses
+          await streamResponseViaWebSocket(userMessage);
+        }
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      const errorMessage = 'Sorry, there was an error processing your message. Please try again.';
+      let errorMessage = 'Sorry, there was an error processing your message. Please try again.';
+      
+      // Provide more specific error messages
+      if (error.message.includes('Failed to fetch')) {
+        errorMessage = 'Connection error. Please check if the backend server is running and try again.';
+      } else if (error.message.includes('Failed to send message')) {
+        errorMessage = 'Unable to send message. Please check your connection and try again.';
+      }
+      
       await simulateStreamingResponse(errorMessage);
       addMessage('assistant', errorMessage);
     } finally {
@@ -285,8 +339,124 @@ Note: I'm specifically designed for diet and nutrition questions related to diab
     return dietKeywords.some(keyword => messageLower.includes(keyword));
   };
 
+  const extractDietPlanRequest = (message) => {
+    const messageLower = message.toLowerCase();
+    
+    // Check for specific diet plan requests with exact matching
+    if (messageLower.includes('7 day') || messageLower.includes('7-day') || messageLower.includes('one week') || messageLower.includes('1 week') || messageLower.includes('week')) {
+      return '7_days';
+    } else if (messageLower.includes('10 day') || messageLower.includes('10-day') || messageLower.includes('ten day')) {
+      return '10_days';
+    } else if (messageLower.includes('14 day') || messageLower.includes('14-day') || messageLower.includes('two week') || messageLower.includes('2 week') || messageLower.includes('2week')) {
+      return '14_days';
+    } else if (messageLower.includes('21 day') || messageLower.includes('21-day') || messageLower.includes('three week') || messageLower.includes('3 week') || messageLower.includes('3week')) {
+      return '21_days';
+    } else if (messageLower.includes('30 day') || messageLower.includes('30-day') || messageLower.includes('one month') || messageLower.includes('1 month') || messageLower.includes('month')) {
+      return '30_days';
+    }
+    
+    // Check for generic diet plan requests
+    if (messageLower.includes('diet plan') || messageLower.includes('meal plan') || messageLower.includes('food plan')) {
+      return 'generic_diet_plan';
+    }
+    
+    return null;
+  };
+
+  const validateDietPlanDuration = (message) => {
+    const messageLower = message.toLowerCase();
+    
+    // Check for unsupported durations
+    if (messageLower.includes('5 day') || messageLower.includes('5-day') || messageLower.includes('five day')) {
+      return 'unsupported_5_days';
+    } else if (messageLower.includes('6 day') || messageLower.includes('6-day') || messageLower.includes('six day')) {
+      return 'unsupported_6_days';
+    } else if (messageLower.includes('8 day') || messageLower.includes('8-day') || messageLower.includes('eight day')) {
+      return 'unsupported_8_days';
+    } else if (messageLower.includes('9 day') || messageLower.includes('9-day') || messageLower.includes('nine day')) {
+      return 'unsupported_9_days';
+    } else if (messageLower.includes('11 day') || messageLower.includes('11-day') || messageLower.includes('eleven day')) {
+      return 'unsupported_11_days';
+    } else if (messageLower.includes('12 day') || messageLower.includes('12-day') || messageLower.includes('twelve day')) {
+      return 'unsupported_12_days';
+    } else if (messageLower.includes('13 day') || messageLower.includes('13-day') || messageLower.includes('thirteen day')) {
+      return 'unsupported_13_days';
+    } else if (messageLower.includes('15 day') || messageLower.includes('15-day') || messageLower.includes('fifteen day')) {
+      return 'unsupported_15_days';
+    } else if (messageLower.includes('16 day') || messageLower.includes('16-day') || messageLower.includes('sixteen day')) {
+      return 'unsupported_16_days';
+    } else if (messageLower.includes('17 day') || messageLower.includes('17-day') || messageLower.includes('seventeen day')) {
+      return 'unsupported_17_days';
+    } else if (messageLower.includes('18 day') || messageLower.includes('18-day') || messageLower.includes('eighteen day')) {
+      return 'unsupported_18_days';
+    } else if (messageLower.includes('19 day') || messageLower.includes('19-day') || messageLower.includes('nineteen day')) {
+      return 'unsupported_19_days';
+    } else if (messageLower.includes('20 day') || messageLower.includes('20-day') || messageLower.includes('twenty day')) {
+      return 'unsupported_20_days';
+    } else if (messageLower.includes('22 day') || messageLower.includes('22-day') || messageLower.includes('twenty two day')) {
+      return 'unsupported_22_days';
+    } else if (messageLower.includes('23 day') || messageLower.includes('23-day') || messageLower.includes('twenty three day')) {
+      return 'unsupported_23_days';
+    } else if (messageLower.includes('24 day') || messageLower.includes('24-day') || messageLower.includes('twenty four day')) {
+      return 'unsupported_24_days';
+    } else if (messageLower.includes('25 day') || messageLower.includes('25-day') || messageLower.includes('twenty five day')) {
+      return 'unsupported_25_days';
+    } else if (messageLower.includes('26 day') || messageLower.includes('26-day') || messageLower.includes('twenty six day')) {
+      return 'unsupported_26_days';
+    } else if (messageLower.includes('27 day') || messageLower.includes('27-day') || messageLower.includes('twenty seven day')) {
+      return 'unsupported_27_days';
+    } else if (messageLower.includes('28 day') || messageLower.includes('28-day') || messageLower.includes('twenty eight day')) {
+      return 'unsupported_28_days';
+    } else if (messageLower.includes('29 day') || messageLower.includes('29-day') || messageLower.includes('twenty nine day')) {
+      return 'unsupported_29_days';
+    } else if (messageLower.includes('31 day') || messageLower.includes('31-day') || messageLower.includes('thirty one day')) {
+      return 'unsupported_31_days';
+    }
+    
+    return null;
+  };
+
   const getProfessionalGeneralResponse = () => {
     return `I'm sorry, but I'm specifically designed as a diet and health assistant for diabetes and blood pressure patients. I can only help with diet planning, nutrition advice, and health management related to these conditions. For other topics, please consult your healthcare provider.`;
+  };
+
+  const getUnsupportedDurationResponse = (unsupportedDuration) => {
+    const durationMap = {
+      'unsupported_5_days': '5 days',
+      'unsupported_6_days': '6 days',
+      'unsupported_8_days': '8 days',
+      'unsupported_9_days': '9 days',
+      'unsupported_11_days': '11 days',
+      'unsupported_12_days': '12 days',
+      'unsupported_13_days': '13 days',
+      'unsupported_15_days': '15 days',
+      'unsupported_16_days': '16 days',
+      'unsupported_17_days': '17 days',
+      'unsupported_18_days': '18 days',
+      'unsupported_19_days': '19 days',
+      'unsupported_20_days': '20 days',
+      'unsupported_22_days': '22 days',
+      'unsupported_23_days': '23 days',
+      'unsupported_24_days': '24 days',
+      'unsupported_25_days': '25 days',
+      'unsupported_26_days': '26 days',
+      'unsupported_27_days': '27 days',
+      'unsupported_28_days': '28 days',
+      'unsupported_29_days': '29 days',
+      'unsupported_31_days': '31 days'
+    };
+    
+    const requestedDuration = durationMap[unsupportedDuration];
+    
+    return `I can only generate diet plans for the following durations:
+
+• 7 Days (1 Week)
+• 10 Days  
+• 14 Days (2 Weeks)
+• 21 Days (3 Weeks)
+• 30 Days (1 Month)
+
+I cannot create a ${requestedDuration} plan. Please choose one of the supported durations above.`;
   };
 
   const formatResponseForDisplay = (response) => {
@@ -369,6 +539,54 @@ Note: I'm specifically designed for diet and nutrition questions related to diab
       addMessage('assistant', 'Sorry, there was an error generating your diet plan. Please try again.');
     } finally {
       setIsGeneratingPlan(false);
+    }
+  };
+
+  const handleGenerateDietPlanFromChat = async (duration) => {
+    if (!sessionId) return;
+
+    try {
+      // Show generating message
+      const generatingMessage = `Generating your ${duration.replace('_', ' ')} diet plan...`;
+      await simulateStreamingResponse(generatingMessage);
+      
+      // Log the duration being sent to backend
+      console.log('Sending duration to backend:', duration);
+      
+      const response = await fetch(`http://127.0.0.1:8000/api/chat/${sessionId}/generate-diet-plan`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          duration: duration
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Backend response:', data);
+        const formattedPlan = formatResponseForDisplay(data.diet_plan);
+        setCurrentDietPlan(formattedPlan);
+        addMessage('assistant', formattedPlan);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Backend error response:', errorData);
+        throw new Error(`Failed to generate diet plan: ${response.status} ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error generating diet plan from chat:', error);
+      let errorMessage = 'Sorry, there was an error generating your diet plan. Please try again.';
+      
+      // Provide more specific error messages
+      if (error.message.includes('Failed to fetch')) {
+        errorMessage = 'Connection error. Please check if the backend server is running and try again.';
+      } else if (error.message.includes('Failed to generate diet plan')) {
+        errorMessage = 'Unable to generate diet plan. Please try again or contact support if the issue persists.';
+      }
+      
+      await simulateStreamingResponse(errorMessage);
+      addMessage('assistant', errorMessage);
     }
   };
 
@@ -789,17 +1007,17 @@ Note: I'm specifically designed for diet and nutrition questions related to diab
                 {/* Diet Plan Generator */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg mx-3 mt-2 p-2">
                   <div className="flex items-center space-x-2 mb-2">
-                    <select
-                      value={dietPlanDuration}
-                      onChange={(e) => setDietPlanDuration(e.target.value)}
-                      className="text-xs border border-blue-300 rounded px-2 py-1 bg-white"
-                    >
-                      <option value="1_week">1 Week</option>
-                      <option value="10_days">10 Days</option>
-                      <option value="14_days">2 Weeks</option>
-                      <option value="21_days">3 Weeks</option>
-                      <option value="1_month">1 Month</option>
-                    </select>
+                                         <select
+                       value={dietPlanDuration}
+                       onChange={(e) => setDietPlanDuration(e.target.value)}
+                       className="text-xs border border-blue-300 rounded px-2 py-1 bg-white"
+                     >
+                       <option value="7_days">7 Days (1 Week)</option>
+                       <option value="10_days">10 Days</option>
+                       <option value="14_days">14 Days (2 Weeks)</option>
+                       <option value="21_days">21 Days (3 Weeks)</option>
+                       <option value="30_days">30 Days (1 Month)</option>
+                     </select>
                     <button
                       onClick={handleGenerateDietPlan}
                       disabled={isGeneratingPlan}
