@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Any
 
 # Import chatbot router
-from api.chatbot import router as chatbot_router
+from api.chatbot import router as chatbot_router, cleanup_expired_sessions
 
 # Load environment variables
 load_dotenv()
@@ -43,6 +43,34 @@ if not os.path.exists(export_dir):
 db_path = os.path.join(os.path.dirname(__file__), 'instance', 'diet_consultant.db')
 print(f"Using database at: {db_path}")
 app.add_middleware(DBSessionMiddleware, db_url=f'sqlite:///{db_path}')
+
+# Add periodic cleanup task
+import asyncio
+from datetime import datetime, timedelta
+
+async def periodic_cleanup():
+    """Run cleanup every 6 hours"""
+    while True:
+        try:
+            await asyncio.sleep(6 * 60 * 60)  # 6 hours
+            cleanup_expired_sessions()
+            print(f"Periodic cleanup completed at {datetime.now()}")
+        except Exception as e:
+            print(f"Error during periodic cleanup: {e}")
+
+# Clean up expired sessions on startup and start periodic cleanup
+@app.on_event("startup")
+async def startup_event():
+    """Clean up expired sessions when server starts and start periodic cleanup"""
+    try:
+        cleanup_expired_sessions()
+        print("Cleaned up expired sessions on startup")
+        
+        # Start periodic cleanup task
+        asyncio.create_task(periodic_cleanup())
+        print("Started periodic cleanup task")
+    except Exception as e:
+        print(f"Error during startup cleanup: {e}")
 
 # Helper functions for CSV export
 def export_user_to_csv(user):
