@@ -15,6 +15,8 @@ const Chatbot = () => {
   const [medicalData, setMedicalData] = useState(null);
   const [showMedicalData, setShowMedicalData] = useState(false);
   const [showFileUpload, setShowFileUpload] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingMessage, setStreamingMessage] = useState('');
   
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -39,7 +41,7 @@ const Chatbot = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, streamingMessage]);
 
   useEffect(() => {
     // Cleanup session on component unmount
@@ -241,6 +243,89 @@ Note: I'm specifically designed for diet and nutrition questions related to diab
     setInputMessage('');
     addMessage('user', userMessage);
 
+    // Start streaming response
+    setIsStreaming(true);
+    setStreamingMessage('');
+
+    try {
+      // Check if it's a general query first
+      const isGeneralQuery = !isDietRelatedQuestion(userMessage);
+      
+      if (isGeneralQuery) {
+        // Simulate streaming for general query response
+        const generalResponse = getProfessionalGeneralResponse();
+        await simulateStreamingResponse(generalResponse);
+        addMessage('assistant', generalResponse);
+      } else {
+        // Use WebSocket for streaming diet-related responses
+        await streamResponseViaWebSocket(userMessage);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      const errorMessage = 'Sorry, there was an error processing your message. Please try again.';
+      await simulateStreamingResponse(errorMessage);
+      addMessage('assistant', errorMessage);
+    } finally {
+      setIsStreaming(false);
+      setStreamingMessage('');
+    }
+  };
+
+  const isDietRelatedQuestion = (message) => {
+    const dietKeywords = [
+      'diet', 'food', 'meal', 'eat', 'nutrition', 'sugar', 'glucose', 'carb', 'protein',
+      'diabetes', 'diabetic', 'blood sugar', 'insulin', 'a1c', 'glycemic',
+      'blood pressure', 'hypertension', 'sodium', 'salt', 'dash diet',
+      'breakfast', 'lunch', 'dinner', 'snack', 'portion', 'weight', 'bmi',
+      'cholesterol', 'fat', 'calorie', 'exercise', 'lifestyle', 'management',
+      'plan', 'recommend', 'suggest', 'help', 'advice', 'guidance'
+    ];
+    
+    const messageLower = message.toLowerCase();
+    return dietKeywords.some(keyword => messageLower.includes(keyword));
+  };
+
+  const getProfessionalGeneralResponse = () => {
+    return `I understand you're asking about a topic outside my specialized area. Let me explain my expertise and how I can help you:
+
+## My Specialization
+I am specifically designed as an **AI Diet Planning Assistant** for patients with:
+- **Diabetes** (Type 1 & Type 2)
+- **Blood Pressure** issues (Hypertension)
+- **Related health conditions**
+
+## What I Can Help You With
+✅ **Personalized diet plans** for your condition
+✅ **Nutrition advice** and meal suggestions
+✅ **Blood sugar management** through diet
+✅ **DASH diet** recommendations for hypertension
+✅ **Lifestyle guidance** for better health outcomes
+✅ **Dietary restrictions** and alternatives
+
+## For Other Topics
+Please consult with your **healthcare provider** or use other appropriate resources for:
+- General medical questions
+- Non-diet related health concerns
+- Emergency medical advice
+
+## Let's Focus on Your Health
+Is there anything specific about your **diet, nutrition, or health management** that I can help you with? I'm here to create personalized plans just for you!
+
+**Note:** Type 'exit' to end the conversation.`;
+  };
+
+  const simulateStreamingResponse = async (response) => {
+    const words = response.split(' ');
+    let currentText = '';
+    
+    for (let i = 0; i < words.length; i++) {
+      currentText += words[i] + ' ';
+      setStreamingMessage(currentText);
+      await new Promise(resolve => setTimeout(resolve, 50)); // 50ms delay between words
+    }
+  };
+
+  const streamResponseViaWebSocket = async (message) => {
     try {
       const response = await fetch(`http://127.0.0.1:8000/api/chat/${sessionId}/message`, {
         method: 'POST',
@@ -248,20 +333,20 @@ Note: I'm specifically designed for diet and nutrition questions related to diab
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: userMessage,
+          message: message,
           chat_history: messages
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
+        await simulateStreamingResponse(data.response);
         addMessage('assistant', data.response, data.sources);
       } else {
         throw new Error('Failed to send message');
       }
     } catch (error) {
-      console.error('Error sending message:', error);
-      addMessage('assistant', 'Sorry, there was an error processing your message. Please try again.');
+      throw error;
     }
   };
 
@@ -381,7 +466,7 @@ Note: I'm specifically designed for diet and nutrition questions related to diab
       
       yPosition = addSection('Patient Information', patientInfo, yPosition);
       
-      // Process the diet plan content
+      // Process the diet plan content with better formatting
       const sections = currentDietPlan.split('\n\n');
       
       for (const section of sections) {
@@ -395,7 +480,9 @@ Note: I'm specifically designed for diet and nutrition questions related to diab
           } else if (title.startsWith('###')) {
             yPosition = addSection(title.replace('###', '').trim(), content, yPosition);
           } else {
-            yPosition = addWrappedText(section, yPosition);
+            // Clean up extra spaces and format regular text
+            const cleanText = section.replace(/\n\s*\n/g, '\n').trim();
+            yPosition = addWrappedText(cleanText, yPosition);
           }
         }
       }
@@ -605,9 +692,9 @@ Note: I'm specifically designed for diet and nutrition questions related to diab
                         <input
                           type="number"
                           placeholder="80"
-                          value={medicalCondition.diastolic}
+                          value={medicalCondition.systolic}
                           onChange={e => setMedicalCondition(prev => ({ ...prev, diastolic: e.target.value }))}
-                          className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-transparent text-sm"
                           required
                         />
                       </div>
@@ -765,6 +852,20 @@ Note: I'm specifically designed for diet and nutrition questions related to diab
                       </div>
                     </div>
                   ))}
+                  
+                  {/* Streaming Message */}
+                  {isStreaming && streamingMessage && (
+                    <div className="flex justify-start">
+                      <div className="max-w-[240px] px-3 py-2 rounded-lg text-sm bg-gray-100 text-gray-800">
+                        <div className="whitespace-pre-wrap">
+                          {streamingMessage}
+                          <span className="animate-pulse">▋</span>
+                        </div>
+                        <div className="text-xs opacity-70 mt-1">{new Date().toLocaleTimeString()}</div>
+                      </div>
+                    </div>
+                  )}
+                  
                   <div ref={messagesEndRef} />
                 </div>
 
@@ -791,7 +892,6 @@ Note: I'm specifically designed for diet and nutrition questions related to diab
                           type="file"
                           multiple
                           accept=".pdf,.jpg,.jpeg,.png"
-                          onChange={handleFileUpload}
                           className="text-xs"
                         />
                       </div>
@@ -823,10 +923,11 @@ Note: I'm specifically designed for diet and nutrition questions related to diab
                       onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                       placeholder="Ask about diet, nutrition, or health management..."
                       className="flex-1 px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      disabled={isStreaming}
                     />
                     <button
                       onClick={handleSendMessage}
-                      disabled={!inputMessage.trim()}
+                      disabled={!inputMessage.trim() || isStreaming}
                       className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-3 py-1.5 rounded-md transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
