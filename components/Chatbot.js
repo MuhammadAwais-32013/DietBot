@@ -169,12 +169,12 @@ const Chatbot = () => {
         await fetchMedicalData(data.session_id);
         
         setShowHealthForm(false);
-        addMessage('assistant', `Hello! I am your AI Diet Planning Assistant, specialized in diabetes and blood pressure management. 
+        addMessage('assistant', `Hello! I am your AI Diet Planning Assistant, specialized in diabetes and blood pressure management.
 
 Your Health Profile:
-- Diabetes: ${medicalCondition.hasDiabetes ? `${medicalCondition.diabetesType} (${medicalCondition.diabetesLevel})` : 'No'} 
-- Blood Pressure: ${medicalCondition.hasHypertension ? `${medicalCondition.systolic}/${medicalCondition.diastolic} mmHg` : 'Normal'}
-- BMI: ${calculateBMI(medicalCondition.height, medicalCondition.weight)}
+• Diabetes: ${medicalCondition.hasDiabetes ? `${medicalCondition.diabetesType} (${medicalCondition.diabetesLevel})` : 'No'} 
+• Blood Pressure: ${medicalCondition.hasHypertension ? `${medicalCondition.systolic}/${medicalCondition.diastolic} mmHg` : 'Normal'}
+• BMI: ${calculateBMI(medicalCondition.height, medicalCondition.weight)}
 
 I can help you create personalized diet plans based on your medical condition. How can I assist you today?
 
@@ -286,36 +286,26 @@ Note: I'm specifically designed for diet and nutrition questions related to diab
   };
 
   const getProfessionalGeneralResponse = () => {
-    return `I understand you're asking about a topic outside my specialized area. Let me explain my expertise and how I can help you:
+    return `I'm sorry, but I'm specifically designed as a diet and health assistant for diabetes and blood pressure patients. I can only help with diet planning, nutrition advice, and health management related to these conditions. For other topics, please consult your healthcare provider.`;
+  };
 
-## My Specialization
-I am specifically designed as an **AI Diet Planning Assistant** for patients with:
-- **Diabetes** (Type 1 & Type 2)
-- **Blood Pressure** issues (Hypertension)
-- **Related health conditions**
-
-## What I Can Help You With
-✅ **Personalized diet plans** for your condition
-✅ **Nutrition advice** and meal suggestions
-✅ **Blood sugar management** through diet
-✅ **DASH diet** recommendations for hypertension
-✅ **Lifestyle guidance** for better health outcomes
-✅ **Dietary restrictions** and alternatives
-
-## For Other Topics
-Please consult with your **healthcare provider** or use other appropriate resources for:
-- General medical questions
-- Non-diet related health concerns
-- Emergency medical advice
-
-## Let's Focus on Your Health
-Is there anything specific about your **diet, nutrition, or health management** that I can help you with? I'm here to create personalized plans just for you!
-
-**Note:** Type 'exit' to end the conversation.`;
+  const formatResponseForDisplay = (response) => {
+    // Remove excessive hashtags and formatting
+    let formatted = response
+      .replace(/^#+\s*/gm, '') // Remove leading hashtags
+      .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold formatting
+      .replace(/\*(.*?)\*/g, '$1') // Remove italic formatting
+      .replace(/`(.*?)`/g, '$1') // Remove code formatting
+      .replace(/\n\s*\n\s*\n/g, '\n\n') // Reduce multiple line breaks
+      .replace(/^\s*[-*]\s*/gm, '• ') // Convert dashes/asterisks to bullet points
+      .trim();
+    
+    return formatted;
   };
 
   const simulateStreamingResponse = async (response) => {
-    const words = response.split(' ');
+    const formattedResponse = formatResponseForDisplay(response);
+    const words = formattedResponse.split(' ');
     let currentText = '';
     
     for (let i = 0; i < words.length; i++) {
@@ -340,8 +330,9 @@ Is there anything specific about your **diet, nutrition, or health management** 
 
       if (response.ok) {
         const data = await response.json();
-        await simulateStreamingResponse(data.response);
-        addMessage('assistant', data.response, data.sources);
+        const formattedResponse = formatResponseForDisplay(data.response);
+        await simulateStreamingResponse(formattedResponse);
+        addMessage('assistant', formattedResponse, data.sources);
       } else {
         throw new Error('Failed to send message');
       }
@@ -367,8 +358,9 @@ Is there anything specific about your **diet, nutrition, or health management** 
 
       if (response.ok) {
         const data = await response.json();
-        setCurrentDietPlan(data.diet_plan);
-        addMessage('assistant', data.diet_plan);
+        const formattedPlan = formatResponseForDisplay(data.diet_plan);
+        setCurrentDietPlan(formattedPlan);
+        addMessage('assistant', formattedPlan);
       } else {
         throw new Error('Failed to generate diet plan');
       }
@@ -467,7 +459,8 @@ Is there anything specific about your **diet, nutrition, or health management** 
       yPosition = addSection('Patient Information', patientInfo, yPosition);
       
       // Process the diet plan content with better formatting
-      const sections = currentDietPlan.split('\n\n');
+      const formattedPlan = formatResponseForDisplay(currentDietPlan);
+      const sections = formattedPlan.split('\n\n');
       
       for (const section of sections) {
         if (section.trim()) {
@@ -475,10 +468,12 @@ Is there anything specific about your **diet, nutrition, or health management** 
           const title = lines[0];
           const content = lines.slice(1).join('\n');
           
-          if (title.startsWith('##')) {
-            yPosition = addSection(title.replace('##', '').trim(), content, yPosition);
-          } else if (title.startsWith('###')) {
-            yPosition = addSection(title.replace('###', '').trim(), content, yPosition);
+          if (title.includes('Day') || title.includes('Breakfast') || title.includes('Lunch') || title.includes('Dinner')) {
+            // Format meal sections
+            yPosition = addSection(title, content, yPosition);
+          } else if (title.includes('Nutritional') || title.includes('Lifestyle') || title.includes('Important')) {
+            // Format guideline sections
+            yPosition = addSection(title, content, yPosition);
           } else {
             // Clean up extra spaces and format regular text
             const cleanText = section.replace(/\n\s*\n/g, '\n').trim();
@@ -692,9 +687,9 @@ Is there anything specific about your **diet, nutrition, or health management** 
                         <input
                           type="number"
                           placeholder="80"
-                          value={medicalCondition.systolic}
+                          value={medicalCondition.diastolic}
                           onChange={e => setMedicalCondition(prev => ({ ...prev, diastolic: e.target.value }))}
-                          className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-transparent text-sm"
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                           required
                         />
                       </div>
@@ -837,7 +832,7 @@ Is there anything specific about your **diet, nutrition, or health management** 
                             : 'bg-gray-100 text-gray-800'
                         }`}
                       >
-                        <div className="whitespace-pre-wrap">{message.content}</div>
+                        <div className="whitespace-pre-wrap">{formatResponseForDisplay(message.content)}</div>
                         {message.sources && message.sources.length > 0 && (
                           <div className="mt-2 pt-2 border-t border-gray-200">
                             <p className="text-xs text-gray-500 mb-1">Sources:</p>
@@ -858,7 +853,7 @@ Is there anything specific about your **diet, nutrition, or health management** 
                     <div className="flex justify-start">
                       <div className="max-w-[240px] px-3 py-2 rounded-lg text-sm bg-gray-100 text-gray-800">
                         <div className="whitespace-pre-wrap">
-                          {streamingMessage}
+                          {formatResponseForDisplay(streamingMessage)}
                           <span className="animate-pulse">▋</span>
                         </div>
                         <div className="text-xs opacity-70 mt-1">{new Date().toLocaleTimeString()}</div>
@@ -935,9 +930,6 @@ Is there anything specific about your **diet, nutrition, or health management** 
                       </svg>
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2 text-center">
-                    Type 'exit' to end the conversation
-                  </p>
                 </div>
               </>
             )}
